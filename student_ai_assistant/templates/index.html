@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.43 12.59 13 13.25 13 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.35 1.7-.92 2.3z'/%3E%3C/svg%3E" type="image/svg+xml">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* CSS Variables for easier theme management */
+        :root {
+            --primary-blue: #007bff; /* A standard, professional blue */
+            --primary-blue-dark: #0056b3;
+            --accent-blue-light: #e6f2ff; /* Very light blue for backgrounds */
+            --sidebar-bg: #2c3e50; /* Darker blue-grey for sidebar */
+            --sidebar-text: #ecf0f1;
+            --sidebar-hover-bg: #34495e;
+            --main-bg: #f8f9fa; /* Off-white for main content background */
+            --card-bg: #ffffff;
+            --border-color: #dee2e6; /* Light grey border */
+            --text-color: #343a40; /* Dark grey for general text */
+            --light-text-color: #6c757d; /* Lighter grey for secondary text */
+            --danger-color: #dc3545; /* Standard red for danger actions */
+            --danger-dark-color: #bd2130;
+            --shadow-light: rgba(0, 0, 0, 0.08);
+            --shadow-medium: rgba(0, 0, 0, 0.15);
+            --chat-user-bubble: #dcf8c6; /* Light green for user messages */
+            --chat-ai-bubble: #e2f0fe; /* Light blue for AI messages */
+        }
+
+        /* Basic Reset & Body Styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--main-bg);
+            color: var(--text-color);
+            display: flex;
+            min-height: 100vh;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* Hide overflow from main container */
+        }
+
+        /* App Container */
+        .app-container {
+            display: flex;
+            width: 100%;
+            max-width: 1400px; /* Wider for more content */
+            height: 92vh; /* Fixed height for consistent layout */
+            background-color: var(--card-bg);
+            box-shadow: 0 10px 30px var(--shadow-medium);
+            border-radius: 15px;
+            overflow: hidden; /* For rounded corners */
+            position: relative; /* For responsive overlay */
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            padding: 25px 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--sidebar-hover-bg);
+            box-shadow: 2px 0 5px var(--shadow-light);
+            transition: transform 0.3s ease-in-out;
+            z-index: 50; /* Above main content for mobile */
+        }
+
+        .sidebar.hidden-mobile {
+            transform: translateX(-100%);
+            position: absolute;
+            height: 100%;
+        }
+
+        .sidebar .logo {
+            text-align: center;
+            margin-bottom: 40px;
+            color: var(--primary-blue);
+            font-size: 1.8em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .sidebar .logo i {
+            font-size: 1.5em;
+        }
+
+        .sidebar nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar nav ul li {
+            margin-bottom: 5px;
+        }
+
+        .sidebar nav ul li a {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 25px;
+            text-decoration: none;
+            color: var(--sidebar-text);
+            font-size: 1.05em;
+            font-weight: 500;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            border-left: 5px solid transparent;
+        }
+
+        .sidebar nav ul li a.active,
+        .sidebar nav ul li a:hover {
+            background-color: var(--sidebar-hover-bg);
+            color: var(--primary-blue);
+            border-left-color: var(--primary-blue);
+        }
+
+        .sidebar nav ul li a i {
+            font-size: 1.3em;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex-grow: 1;
+            padding: 30px;
+            overflow-y: auto; /* Enable scrolling for content, but we'll manage chat scrolling internally */
+            display: flex;
+            flex-direction: column;
+            position: relative; /* For menu icon positioning */
+        }
+
+        .content-section {
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            flex-grow: 1;
+            height: 100%; /* Ensure content sections take full height */
+        }
+
+        .content-section.active {
+            display: flex; /* Show active section */
+        }
+
+        /* Header for content sections */
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            flex-shrink: 0; /* Prevent header from shrinking */
+        }
+
+        .content-header h1 {
+            margin: 0;
+            color: var(--text-color);
+            font-size: 2.2em;
+            font-weight: 700;
+        }
+
+        .action-button {
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap; /* Prevent button text from wrapping */
+        }
+
+        .action-button:hover {
+            background-color: var(--primary-blue-dark);
+            transform: translateY(-2px);
+        }
+
+        .action-button:active {
+            transform: translateY(0);
+        }
+
+        /* AI Assistant Section Specifics */
+        .chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            background-color: var(--card-bg);
+            box-shadow: 0 2px 8px var(--shadow-light);
+            height: 100%; /* Make chat container fill available space */
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto; /* This makes the messages scrollable */
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background-color: var(--accent-blue-light);
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 25px;
+            line-height: 1.6;
+            box-shadow: 0 1px 3px var(--shadow-light);
+            word-wrap: break-word;
+            font-size: 0.95em;
+        }
+
+        .message.user {
+            background-color: var(--chat-user-bubble);
+            align-self: flex-end;
+            border-bottom-right-radius: 8px;
+            color: var(--text-color);
+        }
+
+        .message.ai {
+            background-color: var(--chat-ai-bubble);
+            align-self: flex-start;
+            border-bottom-left-radius: 8px;
+            color: var(--text-color);
+        }
+
+        .chat-input {
+            display: flex;
+            border-top: 1px solid var(--border-color);
+            padding: 15px 20px;
+            background-color: var(--card-bg);
+            gap: 10px;
+            flex-shrink: 0; /* Prevent input from shrinking */
+        }
+
+        .chat-input input {
+            flex-grow: 1;
+            padding: 12px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 25px;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .chat-input input:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+        }
+
+        .chat-input button {
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 1.1em;
+        }
+
+        .chat-input button:hover {
+            background-color: var(--primary-blue-dark);
+        }
+
+        /* List Styles for Semesters, Subjects, Folders, Files */
+        .item-list {
+            margin-top: 20px;
+            display: grid; /* Using grid for better responsiveness and card layout */
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Adaptive columns */
+            gap: 20px; /* Space between cards */
+            flex-grow: 1; /* Allow item list to take available space */
+            overflow-y: auto; /* Make item lists scrollable if they exceed container height */
+            padding-bottom: 10px; /* Add some padding at the bottom for scrolling */
+        }
+
+        /* Use Flexbox for list view on smaller screens if preferred, or for rows */
+        @media (max-width: 768px) {
+            .item-list {
+                grid-template-columns: 1fr; /* Single column for small screens */
+            }
+        }
+
+        .item-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px; /* Slightly more rounded */
+            padding: 20px;
+            display: flex;
+            flex-direction: column; /* Stack details and actions */
+            gap: 15px;
+            box-shadow: 0 3px 10px var(--shadow-light);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px var(--shadow-medium);
+        }
+
+        .item-details {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            gap: 15px;
+            cursor: pointer; /* Indicate clickable for navigation */
+        }
+
+        .item-icon {
+            color: var(--primary-blue);
+            font-size: 2.2em;
+            width: 45px;
+            text-align: center;
+        }
+
+        .item-info {
+            flex-grow: 1;
+        }
+
+        .item-info strong {
+            font-size: 1.3em; /* Larger title */
+            color: var(--text-color);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .item-info span {
+            font-size: 0.95em;
+            color: var(--light-text-color);
+            display: block;
+        }
+
+        .item-actions {
+            display: flex;
+            flex-wrap: wrap; /* Allow actions to wrap */
+            gap: 8px;
+            justify-content: flex-end; /* Align actions to the right/end */
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+            margin-top: auto; /* Push actions to bottom if content varies */
+        }
+
+        .item-actions button, .item-actions a {
+            background-color: var(--accent-blue-light);
+            color: var(--primary-blue);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 500;
+        }
+
+        .item-actions button:hover, .item-actions a:hover {
+            background-color: #d0e7ff; /* Slightly darker accent blue */
+            color: var(--primary-blue-dark);
+            border-color: var(--primary-blue);
+        }
+
+        .item-actions button.delete-btn {
+            background-color: var(--danger-color);
+            color: white;
+            border-color: var(--danger-color);
+        }
+
+        .item-actions button.delete-btn:hover {
+            background-color: var(--danger-dark-color);
+            border-color: var(--danger-dark-color);
+        }
+
+        .item-actions button.assistant-upload-btn {
+            background-color: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+
+        .item-actions button.assistant-upload-btn:hover {
+            background-color: var(--primary-blue-dark);
+            border-color: var(--primary-blue-dark);
+        }
+
+        /* Navigation Breadcrumbs */
+        .breadcrumbs {
+            margin-bottom: 25px;
+            font-size: 1em;
+            color: var(--light-text-color);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            flex-shrink: 0; /* Prevent breadcrumbs from shrinking */
+        }
+
+        .breadcrumbs a {
+            color: var(--primary-blue);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .breadcrumbs a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumbs span {
+            color: var(--border-color);
+        }
+
+        /* Search Bar */
+        .search-bar {
+            margin-bottom: 25px;
+            flex-shrink: 0; /* Prevent search bar from shrinking */
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 12px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1.05em;
+            outline: none;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .search-bar input:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+        }
+
+        /* File Upload Area */
+        .file-upload-area {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            padding: 15px;
+            border: 2px dashed var(--border-color);
+            border-radius: 10px;
+            background-color: var(--accent-blue-light);
+            flex-shrink: 0; /* Prevent file upload area from shrinking */
+        }
+
+        .file-upload-area input[type="file"] {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 8px;
+            background-color: var(--card-bg);
+            flex-grow: 1;
+            font-size: 0.95em;
+        }
+
+        /* No items message */
+        .no-items-message {
+            text-align: center;
+            color: var(--light-text-color);
+            padding: 40px;
+            border: 2px dashed var(--border-color);
+            border-radius: 10px;
+            margin-top: 25px;
+            background-color: var(--accent-blue-light);
+            font-size: 1.1em;
+            flex-grow: 1; /* Allows it to expand and push content down */
+            display: flex; /* Use flex to center content vertically */
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            padding: 35px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            position: relative;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .close-button {
+            color: var(--light-text-color);
+            font-size: 32px;
+            font-weight: bold;
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: var(--text-color);
+        }
+
+        .modal h2 {
+            margin-top: 0;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 18px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+
+        .modal input[type="text"] {
+            width: calc(100% - 24px);
+            padding: 12px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1.1em;
+            outline: none;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .modal input[type="text"]:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+        }
+
+        .modal button {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.15em;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .modal button:hover {
+            background-color: var(--primary-blue-dark);
+        }
+
+        /* Mobile Menu Button */
+        .mobile-menu-button {
+            display: none; /* Hidden on desktop */
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            cursor: pointer;
+            z-index: 100; /* Ensure it's above other content */
+        }
+
+        /* Overlay for mobile sidebar */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 992px) {
+            .app-container {
+                height: 100vh; /* Full height on smaller screens */
+                border-radius: 0; /* No rounded corners for full screen */
+                box-shadow: none; /* No shadow for full screen */
+            }
+
+            .sidebar {
+                position: fixed;
+                height: 100%;
+                left: 0;
+                top: 0;
+                z-index: 50;
+            }
+
+            .main-content {
+                padding-top: 70px; /* Make space for the menu button */
+            }
+
+            .mobile-menu-button {
+                display: block;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .content-header h1 {
+                font-size: 1.8em;
+            }
+
+            .action-button {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .item-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .item-actions button, .item-actions a {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .chat-input {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .chat-input button {
+                width: 100%;
+            }
+
+            .message {
+                max-width: 90%;
+            }
+
+            .file-upload-area {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay" onclick="toggleSidebar()"></div>
+    <button class="mobile-menu-button" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="app-container">
+        <div class="sidebar" id="sidebar">
+            <div class="logo">
+                <i class="fas fa-brain"></i> AI Study Buddy
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="#" id="nav-ai-assistant" class="active" onclick="showSection('ai-assistant'); toggleSidebar(true);">
+                        <i class="fas fa-robot"></i> AI Assistant
+                    </a></li>
+                    <li><a href="#" id="nav-semesters" onclick="showSection('semesters'); toggleSidebar(true);">
+                        <i class="fas fa-calendar-alt"></i> Semesters
+                    </a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <div class="main-content">
+
+            <div id="ai-assistant-section" class="content-section active">
+                <div class="content-header">
+                    <h1>AI Study Assistant</h1>
+                </div>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="message ai">Hello! I'm your AI Study Assistant. How can I help you today?</div>
+                        <div class="message user">Can you summarize my "Quantum Mechanics.pdf" file?</div>
+                        <div class="message ai">Certainly! I can do that. Let me quickly process "Quantum Mechanics.pdf" for you. What specific aspects would you like me to focus on in the summary?</div>
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" id="chat-input-field" placeholder="Type your message here...">
+                        <button id="send-chat-button"><i class="fas fa-paper-plane"></i> Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="semesters-section" class="content-section">
+                <div class="content-header">
+                    <h1>Semesters</h1>
+                    <button class="action-button" onclick="openAddSemesterModal()"><i class="fas fa-plus-circle"></i> Add Semester</button>
+                </div>
+                <div class="item-list" id="semesters-list">
+                </div>
+                <p class="no-items-message" id="no-semesters-message" style="display: none;">No semesters added yet. Click "Add Semester" to get started!</p>
+            </div>
+
+            <div id="subjects-section" class="content-section">
+                <div class="breadcrumbs" id="subject-breadcrumbs">
+                    <a href="#" onclick="showSection('semesters'); return false;">Semesters</a> <span><i class="fas fa-chevron-right"></i></span> <span id="current-semester-name"></span>
+                </div>
+                <div class="content-header">
+                    <h1 id="subjects-header">Subjects</h1>
+                    <button class="action-button" onclick="openAddSubjectModal()"><i class="fas fa-plus-circle"></i> Add Subject</button>
+                </div>
+                <div class="item-list" id="subjects-list">
+                </div>
+                <p class="no-items-message" id="no-subjects-message" style="display: none;">No subjects added yet for this semester. Click "Add Subject" to create one!</p>
+            </div>
+
+            <div id="folders-section" class="content-section">
+                <div class="breadcrumbs" id="folder-breadcrumbs">
+                    <a href="#" onclick="showSection('semesters'); return false;">Semesters</a> <span><i class="fas fa-chevron-right"></i></span>
+                    <a href="#" onclick="navigateTo('subjects', { semesterId: currentPath.semesterId, semesterName: currentPath.semesterName }); return false;" id="folder-semester-breadcrumb"></a> <span><i class="fas fa-chevron-right"></i></span>
+                    <span id="current-subject-name"></span>
+                </div>
+                <div class="content-header">
+                    <h1 id="folders-header">Folders</h1>
+                    <button class="action-button" onclick="openAddFolderModal()"><i class="fas fa-plus-circle"></i> Add Folder</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="folder-file-search" placeholder="Search folders or files...">
+                </div>
+                <div class="item-list" id="folders-list">
+                </div>
+                <p class="no-items-message" id="no-folders-message" style="display: none;">No folders added yet for this subject. Click "Add Folder" to organize your files!</p>
+            </div>
+
+            <div id="files-section" class="content-section">
+                <div class="breadcrumbs" id="file-breadcrumbs">
+                    <a href="#" onclick="showSection('semesters'); return false;">Semesters</a> <span><i class="fas fa-chevron-right"></i></span>
+                    <a href="#" onclick="navigateTo('subjects', { semesterId: currentPath.semesterId, semesterName: currentPath.semesterName }); return false;" id="file-semester-breadcrumb"></a> <span><i class="fas fa-chevron-right"></i></span>
+                    <a href="#" onclick="navigateTo('folders', { semesterId: currentPath.semesterId, semesterName: currentPath.semesterName, subjectId: currentPath.subjectId, subjectName: currentPath.subjectName }); return false;" id="file-subject-breadcrumb"></a> <span><i class="fas fa-chevron-right"></i></span>
+                    <span id="current-folder-name"></span>
+                </div>
+                <div class="content-header">
+                    <h1 id="files-header">Files</h1>
+                    <div class="file-upload-area">
+                        <input type="file" id="file-upload-input" onchange="displaySelectedFileName()">
+                        <span id="selected-file-name" style="color: var(--light-text-color); font-size: 0.9em;">No file chosen</span>
+                        <button class="action-button" onclick="uploadFileToCurrentFolder()"><i class="fas fa-upload"></i> Upload File</button>
+                    </div>
+                </div>
+                <div class="item-list" id="files-list">
+                </div>
+                <p class="no-items-message" id="no-files-message" style="display: none;">No files uploaded yet to this folder. Click "Upload File" to add your study materials!</p>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="addRenameModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title">Add Item</h2>
+            <input type="text" id="itemNameInput" placeholder="Enter name">
+            <button id="modalActionButton" onclick="handleModalAction()">Add</button>
+        </div>
+    </div>
+
+    <script>
+        // State to keep track of current navigation path
+        let currentPath = {
+            section: 'ai-assistant', // 'ai-assistant', 'semesters', 'subjects', 'folders', 'files'
+            semesterId: null,
+            semesterName: null,
+            subjectId: null,
+            subjectName: null,
+            folderId: null,
+            folderName: null
+        };
+
+        // Modal state
+        let modalMode = ''; // 'addSemester', 'renameSemester', 'addSubject', 'renameSubject', 'addFolder', 'renameFolder'
+
+        // Mock Data (replace with actual backend API calls)
+        const mockDb = {
+            semesters: [
+                { id: 1, name: "Fall 2023", subjects: [
+                    { id: 101, name: "Physics 101", folders: [
+                        { id: 1001, name: "Lecture Notes", files: [
+                            { id: 10001, name: "Quantum Mechanics.pdf", type: "PDF", size: 2.4, updated_at: "2 days ago" },
+                            { id: 10002, name: "Thermodynamics.pdf", type: "PDF", size: 1.5, updated_at: "1 day ago" }
+                        ]},
+                        { id: 1003, name: "Assignments", files: [
+                            { id: 10003, name: "HW1.pdf", type: "PDF", size: 0.8, updated_at: "3 days ago" }
+                        ]}
+                    ]},
+                    { id: 102, name: "Mathematics", folders: [
+                        { id: 1004, name: "Calculus I", files: [
+                            { id: 10004, name: "Integration Techniques.docx", type: "DOCX", size: 1.2, updated_at: "5 days ago" }
+                        ]}
+                    ]},
+                    { id: 105, name: "Computer Science", folders: [] }
+                ]},
+                { id: 2, name: "Spring 2024", subjects: [
+                    { id: 106, name: "Chemistry Basics", folders: [] }
+                ]}
+            ],
+            // Files that are conceptually "uploaded to AI Assistant" (for AI processing)
+            aiUploadedFiles: [
+                { id: 10001, name: "Physics Notes.pdf", type: "PDF" },
+                { id: 10004, name: "Math Formulas.docx", type: "DOCX" }
+            ],
+            nextSemesterId: 3,
+            nextSubjectId: 107,
+            nextFolderId: 1005,
+            nextFileId: 10005
+        };
+
+        // --- Core Navigation and UI Display ---
+
+        function showSection(sectionName) {
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            // Show the requested section
+            document.getElementById(sectionName + '-section').classList.add('active');
+
+            // Update active navigation link
+            document.querySelectorAll('.sidebar nav ul li a').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.getElementById('nav-' + sectionName).classList.add('active');
+
+            // Update current path state
+            currentPath.section = sectionName;
+
+            // Clear deeper path info when navigating to top level or AI Assistant
+            if (sectionName === 'semesters' || sectionName === 'ai-assistant') {
+                currentPath.semesterId = null;
+                currentPath.semesterName = null;
+                currentPath.subjectId = null;
+                currentPath.subjectName = null;
+                currentPath.folderId = null;
+                currentPath.folderName = null;
+            }
+
+            // Re-render relevant section
+            if (sectionName === 'semesters') {
+                renderSemesters();
+            } else if (sectionName === 'ai-assistant') {
+                scrollToChatBottom();
+            } else if (sectionName === 'subjects' && currentPath.semesterId) {
+                renderSubjects(currentPath.semesterId);
+            } else if (sectionName === 'folders' && currentPath.subjectId) {
+                renderFolders(currentPath.subjectId);
+            } else if (sectionName === 'files' && currentPath.folderId) {
+                renderFiles(currentPath.folderId);
+            }
+        }
+
+        function navigateTo(targetSection, pathInfo) {
+            // Update currentPath with details for deeper navigation
+            if (pathInfo.semesterId) {
+                currentPath.semesterId = pathInfo.semesterId;
+                currentPath.semesterName = pathInfo.semesterName;
+            }
+            if (pathInfo.subjectId) {
+                currentPath.subjectId = pathInfo.subjectId;
+                currentPath.subjectName = pathInfo.subjectName;
+            }
+            if (pathInfo.folderId) {
+                currentPath.folderId = pathInfo.folderId;
+                currentPath.folderName = pathInfo.folderName;
+            }
+
+            showSection(targetSection); // Change active content section
+
+            // Render specific content based on targetSection
+            if (targetSection === 'subjects') {
+                renderSubjects(currentPath.semesterId);
+                document.getElementById('current-semester-name').textContent = currentPath.semesterName;
+                document.getElementById('subjects-header').textContent = `Subjects for ${currentPath.semesterName}`;
+            } else if (targetSection === 'folders') {
+                renderFolders(currentPath.subjectId);
+                document.getElementById('folder-semester-breadcrumb').textContent = currentPath.semesterName;
+                document.getElementById('current-subject-name').textContent = currentPath.subjectName;
+                document.getElementById('folders-header').textContent = `Folders in ${currentPath.subjectName}`;
+            } else if (targetSection === 'files') {
+                renderFiles(currentPath.folderId);
+                document.getElementById('file-semester-breadcrumb').textContent = currentPath.semesterName;
+                document.getElementById('file-subject-breadcrumb').textContent = currentPath.subjectName;
+                document.getElementById('current-folder-name').textContent = currentPath.folderName;
+                document.getElementById('files-header').textContent = `Files in ${currentPath.folderName}`;
+            }
+        }
+
+        // --- Sidebar Toggling for Mobile ---
+
+        function toggleSidebar(hide = false) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.querySelector('.overlay');
+            const isMobile = window.innerWidth <= 992; // Match CSS breakpoint
+
+            if (!isMobile) {
+                // If not mobile, ensure sidebar is visible and overlay is hidden
+                sidebar.classList.remove('hidden-mobile');
+                overlay.classList.remove('active');
+                return;
+            }
+
+            if (hide || !sidebar.classList.contains('hidden-mobile')) {
+                sidebar.classList.add('hidden-mobile');
+                overlay.classList.remove('active');
+            } else {
+                sidebar.classList.remove('hidden-mobile');
+                overlay.classList.add('active');
+            }
+        }
+
+        // Close sidebar if window is resized above mobile breakpoint while sidebar is open
+        window.addEventListener('resize', () => {
+            toggleSidebar(true); // Always attempt to hide/reset on resize
+        });
+
+        // --- Chatbot Functionality ---
+
+        function scrollToChatBottom() {
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addMessage(text, type) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', type);
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            scrollToChatBottom(); // Scroll to bottom after adding a message
+        }
+
+        document.getElementById('send-chat-button').addEventListener('click', function() {
+            const chatInputField = document.getElementById('chat-input-field');
+            const messageText = chatInputField.value.trim();
+            if (messageText) {
+                addMessage(messageText, 'user'); // Add user message
+                chatInputField.value = ''; // Clear input field
+
+                // Simulate AI response (replace with actual AI logic)
+                setTimeout(() => {
+                    addMessage("I'm processing your request: \"" + messageText + "\". Please give me a moment!", 'ai');
+                    // Further simulate a detailed response
+                    setTimeout(() => {
+                        if (messageText.toLowerCase().includes('summarize') && messageText.toLowerCase().includes('quantum mechanics')) {
+                            addMessage("The 'Quantum Mechanics.pdf' covers foundational principles like wave-particle duality, Schrödinger's equation, and the uncertainty principle. It delves into atomic structure and introduces quantum field theory concepts. Is there a specific chapter or topic you'd like me to elaborate on?", 'ai');
+                        } else if (messageText.toLowerCase().includes('hello') || messageText.toLowerCase().includes('hi')) {
+                            addMessage("Hello there! How can I assist with your studies?", 'ai');
+                        } else {
+                            addMessage("I'm still learning! Could you please provide more context or ask about specific materials?", 'ai');
+                        }
+                    }, 2000);
+                }, 1000);
+            }
+        });
+
+        document.getElementById('chat-input-field').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                document.getElementById('send-chat-button').click();
+            }
+        });
+
+        // --- Modals ---
+
+        function openModal(title, actionButtonText, mode, initialValue = '') {
+            const modal = document.getElementById('addRenameModal');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modalActionButton').textContent = actionButtonText;
+            document.getElementById('itemNameInput').value = initialValue;
+            modalMode = mode;
+            modal.style.display = 'flex'; // Use flex to center the modal
+            document.getElementById('itemNameInput').focus(); // Focus input on open
+        }
+
+        function closeModal() {
+            document.getElementById('addRenameModal').style.display = 'none';
+            document.getElementById('itemNameInput').value = '';
+            modalMode = '';
+        }
+
+        function handleModalAction() {
+            const itemName = document.getElementById('itemNameInput').value.trim();
+            if (!itemName) {
+                alert('Please enter a name.');
+                return;
+            }
+
+            switch (modalMode) {
+                case 'addSemester':
+                    addSemester(itemName);
+                    break;
+                case 'renameSemester':
+                    renameSemester(currentPath.semesterId, itemName);
+                    break;
+                case 'addSubject':
+                    addSubject(itemName);
+                    break;
+                case 'renameSubject':
+                    renameSubject(currentPath.semesterId, currentPath.subjectId, itemName);
+                    break;
+                case 'addFolder':
+                    addFolder(itemName);
+                    break;
+                case 'renameFolder':
+                    renameFolder(currentPath.subjectId, currentPath.folderId, itemName);
+                    break;
+                default:
+                    console.error('Unknown modal mode:', modalMode);
+            }
+            closeModal();
+        }
+
+        // --- Data Management and Rendering Functions ---
+
+        function renderSemesters() {
+            const semestersList = document.getElementById('semesters-list');
+            semestersList.innerHTML = ''; // Clear existing list
+            const noSemestersMessage = document.getElementById('no-semesters-message');
+
+            if (mockDb.semesters.length === 0) {
+                noSemestersMessage.style.display = 'block';
+                return;
+            } else {
+                noSemestersMessage.style.display = 'none';
+            }
+
+            mockDb.semesters.forEach(semester => {
+                const semesterCard = document.createElement('div');
+                semesterCard.classList.add('item-card');
+                semesterCard.innerHTML = `
+                    <div class="item-details" onclick="navigateTo('subjects', { semesterId: ${semester.id}, semesterName: '${semester.name}' })">
+                        <i class="fas fa-calendar-check item-icon"></i>
+                        <div class="item-info">
+                            <strong>${semester.name}</strong>
+                            <span>${semester.subjects.length} Subjects</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button onclick="openRenameSemesterModal(${semester.id}, '${semester.name}')"><i class="fas fa-edit"></i> Rename</button>
+                        <button class="delete-btn" onclick="deleteSemester(${semester.id})"><i class="fas fa-trash-alt"></i> Delete</button>
+                    </div>
+                `;
+                semestersList.appendChild(semesterCard);
+            });
+        }
+
+        function addSemester(name) {
+            mockDb.semesters.push({
+                id: mockDb.nextSemesterId++,
+                name: name,
+                subjects: []
+            });
+            renderSemesters();
+        }
+
+        function openAddSemesterModal() {
+            openModal('Add New Semester', 'Add Semester', 'addSemester');
+        }
+
+        function openRenameSemesterModal(id, currentName) {
+            currentPath.semesterId = id; // Temporarily store ID for rename
+            openModal('Rename Semester', 'Rename', 'renameSemester', currentName);
+        }
+
+        function renameSemester(id, newName) {
+            const semester = mockDb.semesters.find(s => s.id === id);
+            if (semester) {
+                semester.name = newName;
+                renderSemesters();
+                // If we're currently viewing subjects of this semester, update header
+                if (currentPath.section === 'subjects' && currentPath.semesterId === id) {
+                    currentPath.semesterName = newName;
+                    document.getElementById('current-semester-name').textContent = newName;
+                    document.getElementById('subjects-header').textContent = `Subjects for ${newName}`;
+                }
+                // Update breadcrumbs if needed
+                if (currentPath.section === 'folders' || currentPath.section === 'files') {
+                    document.getElementById('folder-semester-breadcrumb').textContent = newName;
+                    document.getElementById('file-semester-breadcrumb').textContent = newName;
+                }
+            }
+        }
+
+        function deleteSemester(id) {
+            if (!confirm('Are you sure you want to delete this semester and all its contents?')) {
+                return;
+            }
+            mockDb.semesters = mockDb.semesters.filter(s => s.id !== id);
+            renderSemesters();
+            // If the deleted semester was the current one, navigate back to semesters list
+            if (currentPath.semesterId === id) {
+                showSection('semesters');
+            }
+        }
+
+
+        function renderSubjects(semesterId) {
+            const subjectsList = document.getElementById('subjects-list');
+            subjectsList.innerHTML = '';
+            const noSubjectsMessage = document.getElementById('no-subjects-message');
+
+            const semester = mockDb.semesters.find(s => s.id === semesterId);
+            if (!semester) {
+                console.error('Semester not found');
+                showSection('semesters'); // Go back if semester not found
+                return;
+            }
+
+            if (semester.subjects.length === 0) {
+                noSubjectsMessage.style.display = 'block';
+                return;
+            } else {
+                noSubjectsMessage.style.display = 'none';
+            }
+
+            semester.subjects.forEach(subject => {
+                const subjectCard = document.createElement('div');
+                subjectCard.classList.add('item-card');
+                subjectCard.innerHTML = `
+                    <div class="item-details" onclick="navigateTo('folders', { semesterId: ${semesterId}, semesterName: '${semester.name}', subjectId: ${subject.id}, subjectName: '${subject.name}' })">
+                        <i class="fas fa-book item-icon"></i>
+                        <div class="item-info">
+                            <strong>${subject.name}</strong>
+                            <span>${subject.folders.length} Folders</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button onclick="openRenameSubjectModal(${semester.id}, ${subject.id}, '${subject.name}')"><i class="fas fa-edit"></i> Rename</button>
+                        <button class="delete-btn" onclick="deleteSubject(${semester.id}, ${subject.id})"><i class="fas fa-trash-alt"></i> Delete</button>
+                    </div>
+                `;
+                subjectsList.appendChild(subjectCard);
+            });
+        }
+
+        function addSubject(name) {
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            if (semester) {
+                semester.subjects.push({
+                    id: mockDb.nextSubjectId++,
+                    name: name,
+                    folders: []
+                });
+                renderSubjects(currentPath.semesterId);
+            }
+        }
+
+        function openAddSubjectModal() {
+            if (!currentPath.semesterId) {
+                alert('Please select a semester first.');
+                return;
+            }
+            openModal(`Add New Subject to ${currentPath.semesterName}`, 'Add Subject', 'addSubject');
+        }
+
+        function openRenameSubjectModal(semesterId, subjectId, currentName) {
+            currentPath.semesterId = semesterId; // Ensure semester context is available
+            currentPath.subjectId = subjectId; // Temporarily store ID for rename
+            openModal('Rename Subject', 'Rename', 'renameSubject', currentName);
+        }
+
+        function renameSubject(semesterId, subjectId, newName) {
+            const semester = mockDb.semesters.find(s => s.id === semesterId);
+            if (semester) {
+                const subject = semester.subjects.find(sub => sub.id === subjectId);
+                if (subject) {
+                    subject.name = newName;
+                    renderSubjects(semesterId);
+                    // Update breadcrumbs if current
+                    if (currentPath.section === 'folders' || currentPath.section === 'files') {
+                        document.getElementById('current-subject-name').textContent = newName;
+                        document.getElementById('file-subject-breadcrumb').textContent = newName;
+                    }
+                }
+            }
+        }
+
+        function deleteSubject(semesterId, subjectId) {
+            if (!confirm('Are you sure you want to delete this subject and all its contents?')) {
+                return;
+            }
+            const semester = mockDb.semesters.find(s => s.id === semesterId);
+            if (semester) {
+                semester.subjects = semester.subjects.filter(sub => sub.id !== subjectId);
+                renderSubjects(semesterId);
+                // If the deleted subject was the current one, navigate back to subjects list
+                if (currentPath.subjectId === subjectId) {
+                    navigateTo('subjects', { semesterId: currentPath.semesterId, semesterName: currentPath.semesterName });
+                }
+            }
+        }
+
+        function renderFolders(subjectId) {
+            const foldersList = document.getElementById('folders-list');
+            foldersList.innerHTML = '';
+            const noFoldersMessage = document.getElementById('no-folders-message');
+
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === subjectId) : null;
+
+            if (!subject) {
+                console.error('Subject not found');
+                navigateTo('subjects', { semesterId: currentPath.semesterId, semesterName: currentPath.semesterName }); // Go back
+                return;
+            }
+
+            if (subject.folders.length === 0) {
+                noFoldersMessage.style.display = 'block';
+                return;
+            } else {
+                noFoldersMessage.style.display = 'none';
+            }
+
+            subject.folders.forEach(folder => {
+                const folderCard = document.createElement('div');
+                folderCard.classList.add('item-card');
+                folderCard.innerHTML = `
+                    <div class="item-details" onclick="navigateTo('files', { semesterId: currentPath.semesterId, semesterName: currentPath.semesterName, subjectId: ${subjectId}, subjectName: '${subject.name}', folderId: ${folder.id}, folderName: '${folder.name}' })">
+                        <i class="fas fa-folder item-icon"></i>
+                        <div class="item-info">
+                            <strong>${folder.name}</strong>
+                            <span>${folder.files.length} Files</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button onclick="openRenameFolderModal(${subject.id}, ${folder.id}, '${folder.name}')"><i class="fas fa-edit"></i> Rename</button>
+                        <button class="delete-btn" onclick="deleteFolder(${subject.id}, ${folder.id})"><i class="fas fa-trash-alt"></i> Delete</button>
+                    </div>
+                `;
+                foldersList.appendChild(folderCard);
+            });
+        }
+
+        function addFolder(name) {
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === currentPath.subjectId) : null;
+            if (subject) {
+                subject.folders.push({
+                    id: mockDb.nextFolderId++,
+                    name: name,
+                    files: []
+                });
+                renderFolders(currentPath.subjectId);
+            }
+        }
+
+        function openAddFolderModal() {
+            if (!currentPath.subjectId) {
+                alert('Please select a subject first.');
+                return;
+            }
+            openModal(`Add New Folder to ${currentPath.subjectName}`, 'Add Folder', 'addFolder');
+        }
+
+        function openRenameFolderModal(subjectId, folderId, currentName) {
+            currentPath.subjectId = subjectId; // Ensure subject context is available
+            currentPath.folderId = folderId; // Temporarily store ID for rename
+            openModal('Rename Folder', 'Rename', 'renameFolder', currentName);
+        }
+
+        function renameFolder(subjectId, folderId, newName) {
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === subjectId) : null;
+            if (subject) {
+                const folder = subject.folders.find(f => f.id === folderId);
+                if (folder) {
+                    folder.name = newName;
+                    renderFolders(subjectId);
+                    // Update breadcrumbs if current
+                    if (currentPath.section === 'files') {
+                        document.getElementById('current-folder-name').textContent = newName;
+                    }
+                }
+            }
+        }
+
+        function deleteFolder(subjectId, folderId) {
+            if (!confirm('Are you sure you want to delete this folder and all its files?')) {
+                return;
+            }
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === subjectId) : null;
+            if (subject) {
+                subject.folders = subject.folders.filter(f => f.id !== folderId);
+                renderFolders(subjectId);
+                // If the deleted folder was the current one, navigate back to folders list
+                if (currentPath.folderId === folderId) {
+                    navigateTo('folders', {
+                        semesterId: currentPath.semesterId,
+                        semesterName: currentPath.semesterName,
+                        subjectId: currentPath.subjectId,
+                        subjectName: currentPath.subjectName
+                    });
+                }
+            }
+        }
+
+
+        function renderFiles(folderId) {
+            const filesList = document.getElementById('files-list');
+            filesList.innerHTML = '';
+            const noFilesMessage = document.getElementById('no-files-message');
+            document.getElementById('selected-file-name').textContent = 'No file chosen'; // Reset file input text
+
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === currentPath.subjectId) : null;
+            const folder = subject ? subject.folders.find(f => f.id === folderId) : null;
+
+            if (!folder) {
+                console.error('Folder not found');
+                navigateTo('folders', {
+                    semesterId: currentPath.semesterId,
+                    semesterName: currentPath.semesterName,
+                    subjectId: currentPath.subjectId,
+                    subjectName: currentPath.subjectName
+                }); // Go back
+                return;
+            }
+
+            if (folder.files.length === 0) {
+                noFilesMessage.style.display = 'block';
+                return;
+            } else {
+                noFilesMessage.style.display = 'none';
+            }
+
+            folder.files.forEach(file => {
+                const fileCard = document.createElement('div');
+                fileCard.classList.add('item-card');
+                fileCard.innerHTML = `
+                    <div class="item-details">
+                        <i class="fas ${getFileIcon(file.type)} item-icon"></i>
+                        <div class="item-info">
+                            <strong>${file.name}</strong>
+                            <span>${file.size} MB | Uploaded ${file.updated_at}</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="assistant-upload-btn" onclick="uploadFileToAssistant('${file.name}', '${file.type}')"><i class="fas fa-robot"></i> Ask AI</button>
+                        <button class="delete-btn" onclick="deleteFile(${folder.id}, ${file.id})"><i class="fas fa-trash-alt"></i> Delete</button>
+                    </div>
+                `;
+                filesList.appendChild(fileCard);
+            });
+        }
+
+        function displaySelectedFileName() {
+            const input = document.getElementById('file-upload-input');
+            const fileNameSpan = document.getElementById('selected-file-name');
+            if (input.files.length > 0) {
+                fileNameSpan.textContent = input.files[0].name;
+            } else {
+                fileNameSpan.textContent = 'No file chosen';
+            }
+        }
+
+        function uploadFileToCurrentFolder() {
+            const input = document.getElementById('file-upload-input');
+            if (input.files.length === 0) {
+                alert('Please select a file to upload.');
+                return;
+            }
+
+            const file = input.files[0];
+            const fileName = file.name;
+            const fileSize = (file.size / (1024 * 1024)).toFixed(1); // Size in MB
+            const fileType = fileName.split('.').pop().toUpperCase(); // Get extension
+
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === currentPath.subjectId) : null;
+            const folder = subject ? subject.folders.find(f => f.id === currentPath.folderId) : null;
+
+            if (folder) {
+                folder.files.push({
+                    id: mockDb.nextFileId++,
+                    name: fileName,
+                    type: fileType,
+                    size: parseFloat(fileSize),
+                    updated_at: "just now"
+                });
+                renderFiles(currentPath.folderId);
+                input.value = ''; // Clear file input
+                displaySelectedFileName(); // Update display
+            } else {
+                alert('Error: Could not find the current folder to upload to.');
+            }
+        }
+
+        function deleteFile(folderId, fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) {
+                return;
+            }
+            const semester = mockDb.semesters.find(s => s.id === currentPath.semesterId);
+            const subject = semester ? semester.subjects.find(sub => sub.id === currentPath.subjectId) : null;
+            const folder = subject ? subject.folders.find(f => f.id === folderId) : null;
+
+            if (folder) {
+                folder.files = folder.files.filter(f => f.id !== fileId);
+                renderFiles(folderId);
+            }
+        }
+
+        function uploadFileToAssistant(fileName, fileType) {
+            // This simulates sending the file info to the AI Assistant
+            // In a real app, you'd send the actual file data to a backend for processing.
+            // For now, we'll add a chat message.
+            addMessage(`Okay, I've conceptually received "${fileName}" (${fileType}). What would you like to do with it?`, 'ai');
+            showSection('ai-assistant');
+        }
+
+        function getFileIcon(fileType) {
+            switch (fileType) {
+                case 'PDF': return 'fa-file-pdf';
+                case 'DOCX':
+                case 'DOC': return 'fa-file-word';
+                case 'XLS':
+                case 'XLSX': return 'fa-file-excel';
+                case 'PPT':
+                case 'PPTX': return 'fa-file-powerpoint';
+                case 'JPG':
+                case 'JPEG':
+                case 'PNG':
+                case 'GIF': return 'fa-file-image';
+                case 'TXT': return 'fa-file-alt';
+                case 'ZIP':
+                case 'RAR': return 'fa-file-archive';
+                default: return 'fa-file';
+            }
+        }
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            showSection('ai-assistant'); // Default to AI Assistant on load
+            // Call renderSemesters to ensure the initial view is correctly populated if not AI Assistant
+            renderSemesters();
+        });
+    </script>
+</body>
+</html>
